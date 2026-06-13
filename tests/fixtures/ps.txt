@@ -2,7 +2,7 @@
 73699  30.2  0.9 445840 01:06:06 /Users/sushil/.local/share/claude/versions/2.1.177
 82044  27.7  0.4 217776 01:01:14 /Applications/ChatGPT.app/Contents/MacOS/ChatGPT
 15127  21.6  0.0   4176 02:13:59 /usr/libexec/sysmond
-50286  14.5  3.9 1973904 01:32:34 /Users/sushil/code/monorepo/alpha/.venv/bin/python3
+50286  14.5  3.9 1973904 01:32:34 /Users/me/code/monorepo/alpha/.venv/bin/python3
 36710  10.2  0.3 166144 01:55:24 /Users/sushil/Applications/iTerm.app/Contents/MacOS/iTerm2
 33901   9.3  0.4 199248 01:58:48 claude
 43160   8.9  0.1  28128 01:46:23 /System/Applications/Utilities/Activity Monitor.app/Contents/MacOS/Activity Monitor

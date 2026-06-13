@@ -17,7 +17,7 @@ from ..model import GpuStats, ProcInfo, StaticInfo
 from ..util import exe_basename, project_from_cwd, run, short_command
 from .base import Backend
 
-# Names that strongly suggest a GPU/compute workload on a monorepo Mac.
+# Executable names that suggest a GPU/compute workload.
 _CANDIDATE = re.compile(
     r"(python|mlx|ollama|llama|ggml|comfy|stable|mojo|julia|jupyter|torch|tensorflow|jax)",
     re.I,
@@ -115,7 +115,7 @@ class AppleBackend(Backend):
     def __init__(self, power: bool = False):
         self._static: Optional[StaticInfo] = None
         self._cwd_cache: Dict[int, Optional[str]] = {}
-        self.power = power               # opt-in: GPU wattage via powermetrics (sudo)
+        self.power = power               # opt-in GPU wattage (sudo); see _gpu_power
         self._last_power: Optional[float] = None
 
     def static_info(self) -> StaticInfo:

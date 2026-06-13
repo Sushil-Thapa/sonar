@@ -10,7 +10,7 @@ def test_exe_basename():
 
 
 def test_short_command_strips_interpreter_path():
-    s = short_command("/Users/x/code/monorepo/.venv/bin/python3 train.py --config c.yaml")
+    s = short_command("/Users/x/code/proj/.venv/bin/python3 train.py --config c.yaml")
     assert s == "python3 train.py --config c.yaml"
 
 

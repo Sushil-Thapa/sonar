@@ -1,8 +1,4 @@
-"""Plain data containers shared across backends, hints, and UI.
-
-Keeping these as dumb dataclasses means parsers, the hints engine, and the
-renderer all speak the same vocabulary without importing each other.
-"""
+"""Shared dataclasses used by the backends, hints engine, and UI."""
 
 from __future__ import annotations
 
@@ -12,49 +8,47 @@ from typing import Optional
 
 @dataclass
 class StaticInfo:
-    """Slow-changing facts about the machine, sampled once at startup."""
+    """Machine facts sampled once at startup."""
 
     backend: str                      # "apple" | "nvidia"
     gpu_name: str
     cores: Optional[int] = None       # Apple GPU core count
-    gpu_count: int = 1                # number of discrete GPUs (NVIDIA)
-    mem_total: Optional[int] = None   # bytes (unified RAM on Apple, VRAM on NVIDIA)
+    gpu_count: int = 1
+    mem_total: Optional[int] = None   # unified RAM (Apple) or VRAM (NVIDIA), bytes
     platform: str = ""
 
 
 @dataclass
 class GpuStats:
-    """One instantaneous reading of GPU utilization and memory."""
+    """One GPU reading."""
 
-    device_util: float = 0.0          # 0-100, the headline number
+    device_util: float = 0.0
     renderer_util: Optional[float] = None  # Apple only
     tiler_util: Optional[float] = None     # Apple only
-    mem_used: Optional[int] = None    # bytes
-    mem_total: Optional[int] = None   # bytes
-    power_w: Optional[float] = None   # NVIDIA, or Apple w/ --power
-    temp_c: Optional[float] = None    # NVIDIA
+    mem_used: Optional[int] = None
+    mem_total: Optional[int] = None
+    power_w: Optional[float] = None
+    temp_c: Optional[float] = None
 
 
 @dataclass
 class ProcInfo:
-    """A candidate compute process and the project folder it runs from."""
+    """A compute process and the project folder it runs from."""
 
     pid: int
     name: str
     cmd: str
     cpu: float = 0.0
     mem_pct: float = 0.0
-    rss: int = 0                      # bytes
-    etime: str = ""                   # elapsed time, ps format
+    rss: int = 0
+    etime: str = ""
     cwd: Optional[str] = None
     project: Optional[str] = None
-    gpu_mem: Optional[int] = None     # bytes, real on NVIDIA, None on Apple
-    is_gpu: bool = False              # confirmed (NVIDIA) or heuristic (Apple)
+    gpu_mem: Optional[int] = None     # real on NVIDIA, None on Apple
+    is_gpu: bool = False              # confirmed on NVIDIA, heuristic on Apple
 
 
 @dataclass
 class Hint:
-    """An optimization/health observation. severity: info | warn | crit."""
-
-    severity: str
+    severity: str  # info | warn | crit
     text: str

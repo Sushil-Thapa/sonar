@@ -48,7 +48,7 @@ def exe_basename(args: str) -> str:
 def short_command(args: str, cap: int = 200) -> str:
     """Compact display of a command line: interpreter path -> basename, capped.
 
-    Turns "/Users/.../.venv/bin/python3 train.py --config c.yaml" into
+    Turns "/path/.venv/bin/python3 train.py --config c.yaml" into
     "python3 train.py --config c.yaml" so the script and args are what show.
     """
     toks = args.split()

@@ -51,7 +51,7 @@ def test_parse_ps_excludes_pid():
 
 def test_parse_ps_shows_full_command_and_matches_on_exe():
     # args form: interpreter path + script + flags
-    text = "555 80.0 4.0 200000 01:00:00 /Users/x/monorepo/.venv/bin/python3 train.py --config c.yaml"
+    text = "555 80.0 4.0 200000 01:00:00 /Users/x/proj/.venv/bin/python3 train.py --config c.yaml"
     procs = parse_ps(text)
     assert len(procs) == 1
     p = procs[0]
