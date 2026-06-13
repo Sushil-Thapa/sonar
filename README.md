@@ -10,7 +10,7 @@ A small GPU monitor TUI. A nerfed `nvidia-smi`/`htop` for the GPU that also tell
 - **Linux (NVIDIA)** — utilization, VRAM, temperature, power, and **real per-process GPU
   memory** from `nvidia-smi` (no sudo).
 
-![sonar screenshot](docs/screenshot.svg)
+![sonar screenshot](https://raw.githubusercontent.com/Sushil-Thapa/sonar/main/docs/screenshot.svg)
 
 The **Util** sparkline and **Owner** strip read left-to-right over the recent window: above,
 `monorepo/alpha` (cyan) held the GPU, went idle (grey), then handed off to `monorepo/beta`
