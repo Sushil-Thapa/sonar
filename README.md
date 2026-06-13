@@ -35,10 +35,29 @@ so a monorepo like `~/code/monorepo` stays split into `monorepo/alpha`, `monorep
 
 ## Install
 
+**Recommended — uv tool** (puts a global `sonar` on your PATH, isolated env):
+
 ```sh
-python3 -m venv .venv && .venv/bin/pip install -e .
-.venv/bin/sonar          # or just `sonar` once the venv is active
+uv tool install .            # from the repo dir; or: uv tool install /path/to/sonar
+sonar                        # now works from any directory
+uv tool upgrade sonar-gpu    # after pulling changes
 ```
+
+**Ephemeral — uvx** (run without installing):
+
+```sh
+uvx --from . sonar           # or: uvx --from /path/to/sonar sonar report
+```
+
+**Project venv — uv sync / pip** (for development):
+
+```sh
+uv sync                      # then: uv run sonar
+# or: python3 -m venv .venv && .venv/bin/pip install -e . && .venv/bin/sonar
+```
+
+If `sonar` isn't found after `uv tool install`, run `uv tool update-shell` once and open a
+new terminal (adds `~/.local/bin` to PATH).
 
 ## Usage
 
