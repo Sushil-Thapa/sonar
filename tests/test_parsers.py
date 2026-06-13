@@ -1,6 +1,6 @@
 import os
 
-from sonar.backends.apple import parse_displays, parse_ioreg, parse_ps
+from sonar.backends.apple import parse_displays, parse_gpu_power, parse_ioreg, parse_ps
 from sonar.backends.nvidia import parse_compute_apps, parse_query_gpu, parse_sample
 
 FIX = os.path.join(os.path.dirname(__file__), "fixtures")
@@ -58,6 +58,11 @@ def test_parse_ps_shows_full_command_and_matches_on_exe():
     assert p.name == "python3"           # matched on executable
     assert p.is_gpu is True              # python => compute candidate
     assert p.cmd == "python3 train.py --config c.yaml"  # script visible
+
+
+def test_parse_gpu_power():
+    assert parse_gpu_power("GPU Power: 1234 mW\nother: x") == 1.234
+    assert parse_gpu_power("no power here") is None
 
 
 def test_nvidia_query_gpu_aggregates():

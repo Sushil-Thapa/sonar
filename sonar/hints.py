@@ -13,6 +13,16 @@ from .model import GpuStats, Hint, ProcInfo, StaticInfo
 _IDLE = 5.0          # below this, the GPU is effectively idle
 _UNDERUSED = 30.0    # sustained util below this during a run is wasteful
 _RECENT = 8          # samples considered "recent" for trend rules
+_ACTIVE_CPU = 25.0   # CPU% above which a process counts as a genuinely active run
+
+
+def _is_active_run(p) -> bool:
+    """A real workload, not an idle candidate (e.g. a parked Jupyter kernel).
+
+    True if it holds GPU memory (NVIDIA, ground truth) or is burning CPU
+    (the proxy on macOS, where per-process GPU use is unobservable).
+    """
+    return bool(p.gpu_mem) or p.cpu >= _ACTIVE_CPU
 
 
 def evaluate(
@@ -33,10 +43,12 @@ def evaluate(
         elif frac > 0.8:
             hints.append(Hint("warn", f"GPU memory at {frac * 100:.0f}% of total — limited headroom"))
 
-    # Co-resident runs (violates a serial single-GPU policy).
-    if len(gpu_procs) >= 2:
-        who = ", ".join(sorted({p.project or p.name for p in gpu_procs}))
-        hints.append(Hint("warn", f"{len(gpu_procs)} GPU processes co-resident ({who}) — expected one at a time"))
+    # Co-resident runs (violates a serial single-GPU policy). Only count
+    # genuinely active runs so an idle kernel next to a real run doesn't trip it.
+    active = [p for p in gpu_procs if _is_active_run(p)]
+    if len(active) >= 2:
+        who = ", ".join(sorted({p.project or p.name for p in active}))
+        hints.append(Hint("warn", f"{len(active)} active runs co-resident ({who}) — expected one at a time"))
 
     # Live run but the GPU is idle: stall or input-pipeline bound.
     if gpu_procs and len(recent) >= 5 and all(u < _IDLE for u in recent):

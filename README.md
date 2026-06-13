@@ -1,5 +1,7 @@
 # sonar
 
+[![ci](https://github.com/Sushil-Thapa/sonar/actions/workflows/ci.yml/badge.svg)](https://github.com/Sushil-Thapa/sonar/actions/workflows/ci.yml)
+
 A small GPU monitor TUI. A nerfed `nvidia-smi`/`htop` for the GPU that also tells you
 **which project folder** is driving the load and **how to optimize**.
 
@@ -8,20 +10,11 @@ A small GPU monitor TUI. A nerfed `nvidia-smi`/`htop` for the GPU that also tell
 - **Linux (NVIDIA)** — utilization, VRAM, temperature, power, and **real per-process GPU
   memory** from `nvidia-smi` (no sudo).
 
-```
-◣◢ sonar  GPU monitor                         Apple M4 Pro  16 cores  macOS  ·  apple
-┌ load ───────────────────────┐ ┌ processes (by dominant compute) ──────────────────┐
-│ GPU       ████████████ 100% │ │  PID   PROJECT        COMMAND                CPU% │
-│ Renderer  ██████        50% │ │ 50286  monorepo/alpha  python train.py --cfg…  84 │
-│ Memory    ██████        19% │ └───────────────────────────────────────────────────┘
-│ Utilization ▁▂▃▅▇█▇▆▅▃      │
-│ Owner       ███████░░████   │  ← colored by which project owned the GPU
-│             █ alpha  █ beta   │
-└─────────────────────────────┘
-┌ hints ──────────────────────┐
-│  ▲ GPU idle while a run is alive — possible stall / data-loading bottleneck        │
-└────────────────────────────────────────────────────────────────────────────────────┘
-```
+![sonar screenshot](docs/screenshot.svg)
+
+The **Util** sparkline and **Owner** strip read left-to-right over the recent window: above,
+`monorepo/alpha` (cyan) held the GPU, went idle (grey), then handed off to `monorepo/beta`
+(magenta). Regenerate the image with `python scripts/gen_screenshot.py`.
 
 ## The honest caveat
 
@@ -72,6 +65,8 @@ sonar --once          # render one frame and exit (good for screenshots / cron)
 sonar --json          # one machine-readable sample, then exit
 sonar --log           # also append samples to ~/.sonar/log-DATE.jsonl
 sonar --cpu-threshold 10   # surface non-compute processes above 10% CPU too
+sonar --window 480         # longer timeline window (samples kept for spark/owner strip)
+sonar --power              # macOS: GPU watts via passwordless `sudo powermetrics`
 
 sonar report          # roll up today's log: GPU time per project + idle
 sonar report --date 2026-06-13

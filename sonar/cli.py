@@ -30,6 +30,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "--cpu-threshold", type=float, default=20.0,
         help="non-compute processes show only above this CPU%% (default 20)",
     )
+    p.add_argument(
+        "--window", type=int, default=240,
+        help="samples kept for the sparkline/owner strip (default 240 ~= 6m @1.5s)",
+    )
+    p.add_argument(
+        "--power", action="store_true",
+        help="show GPU power (macOS: needs passwordless `sudo powermetrics`; NVIDIA: always on)",
+    )
     p.set_defaults(cmd="live")
 
     sub = p.add_subparsers(dest="cmd")
@@ -128,6 +136,9 @@ def main(argv=None) -> int:
         print(f"sonar: {e}", file=sys.stderr)
         return 1
 
+    if args.power and hasattr(backend, "power"):
+        backend.power = True  # macOS opt-in; NVIDIA reports power unconditionally
+
     static = backend.static_info()
 
     if args.json:
@@ -136,7 +147,7 @@ def main(argv=None) -> int:
         print(_snapshot_json(static, stats, procs))
         return 0
 
-    hist = History(logpath=args.log)
+    hist = History(maxlen=max(1, args.window), logpath=args.log)
 
     if args.once:
         stats = backend.sample()

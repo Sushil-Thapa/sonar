@@ -7,6 +7,7 @@ same code path serves both the live loop and the --once snapshot.
 from __future__ import annotations
 
 import time
+from collections import Counter
 from typing import List
 
 from rich.align import Align
@@ -38,10 +39,25 @@ def _util_color(pct: float) -> str:
     return "green" if pct < 60 else ("yellow" if pct < 85 else "red")
 
 
-def sparkline(values, width: int = 48) -> Text:
-    vals = list(values)[-width:]
+def _buckets(seq, n: int) -> List[list]:
+    """Split a sequence into n contiguous near-equal buckets.
+
+    Lets a long history window be shown in a fixed display width: each column
+    summarizes a slice of time rather than a single sample.
+    """
+    seq = list(seq)
+    if not seq or n <= 0:
+        return []
+    if len(seq) <= n:
+        return [[x] for x in seq]
+    L = len(seq)
+    return [seq[i * L // n:(i + 1) * L // n] or [seq[min(i * L // n, L - 1)]] for i in range(n)]
+
+
+def sparkline(values, width: int = 28) -> Text:
     t = Text()
-    for v in vals:
+    for b in _buckets(values, width):
+        v = sum(b) / len(b)
         idx = max(0, min(7, int(round((v / 100.0) * 7))))
         t.append(_SPARK[idx], style=_util_color(v))
     return t
@@ -53,13 +69,20 @@ def owner_colors(owners) -> dict:
     return {n: _PALETTE[i % len(_PALETTE)] for i, n in enumerate(names)}
 
 
-def ownership_strip(util, owner, colors: dict, width: int = 48) -> Text:
-    """One block per sample, colored by the owning project; grey when idle."""
-    u = list(util)[-width:]
-    o = list(owner)[-width:]
+def ownership_strip(util, owner, colors: dict, width: int = 28) -> Text:
+    """One block per time-bucket, colored by the project that owned it.
+
+    Per bucket the dominant owner among active samples wins; a bucket that was
+    mostly idle renders grey.
+    """
+    ub = _buckets(util, width)
+    ob = _buckets(owner, width)
     t = Text()
-    for uv, own in zip(u, o):
-        if uv < _IDLE_UTIL or not own:
+    for u_b, o_b in zip(ub, ob):
+        avg = sum(u_b) / len(u_b)
+        owners = [o for o, uu in zip(o_b, u_b) if o and uu >= _IDLE_UTIL]
+        own = Counter(owners).most_common(1)[0][0] if owners else None
+        if avg < _IDLE_UTIL or not own:
             t.append("█", style="grey30")
         else:
             t.append("█", style=colors.get(own, "white"))
@@ -76,7 +99,7 @@ def ownership_legend(colors: dict) -> Text:
     return t
 
 
-def gauge(label: str, pct, width: int = 30) -> Text:
+def gauge(label: str, pct, width: int = 18) -> Text:
     pct = max(0.0, min(100.0, pct or 0.0))
     filled = int(round(pct / 100.0 * width))
     color = _util_color(pct)
@@ -133,16 +156,16 @@ def _gauges_panel(stats: GpuStats, history) -> Panel:
         lines.append(cap)
 
     lines.append(Text(""))
-    trend = Text("Utilization  ", style="bold")
+    trend = Text(f"{'Util':<10}", style="bold")
     trend.append_text(sparkline(history.util))
     lines.append(trend)
 
     # Ownership strip: which project held the GPU at each point in the window.
     colors = owner_colors(history.owner)
-    strip = Text("Owner        ", style="bold")
+    strip = Text(f"{'Owner':<10}", style="bold")
     strip.append_text(ownership_strip(history.util, history.owner, colors))
     lines.append(strip)
-    legend = Text("             ")
+    legend = Text(" " * 10)
     legend.append_text(ownership_legend(colors))
     lines.append(legend)
 
@@ -205,7 +228,7 @@ def render(static: StaticInfo, stats: GpuStats, procs: List[ProcInfo],
         Layout(name="footer", size=1),
     )
     root["body"].split_row(
-        Layout(name="left", ratio=2),
+        Layout(name="left", ratio=2, minimum_size=42),
         Layout(name="right", ratio=3),
     )
     root["left"].split_column(
@@ -220,6 +243,9 @@ def render(static: StaticInfo, stats: GpuStats, procs: List[ProcInfo],
     footer.append("ctrl-c", style="bold cyan")
     footer.append(" quit   ", style="grey62")
     footer.append(f"refresh {interval:g}s", style="grey62")
+    maxlen = getattr(history.util, "maxlen", None)
+    if maxlen:
+        footer.append(f"   window ~{human_duration(maxlen * interval)}", style="grey62")
     root["footer"].update(Align.left(footer))
     return root
 

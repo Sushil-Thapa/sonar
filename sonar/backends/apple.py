@@ -40,6 +40,12 @@ def parse_ioreg(text: str) -> Dict[str, int]:
     return best
 
 
+def parse_gpu_power(text: str) -> Optional[float]:
+    """Extract GPU power in watts from `powermetrics --samplers gpu_power`."""
+    m = re.search(r"GPU Power:\s*([\d.]+)\s*mW", text)
+    return float(m.group(1)) / 1000.0 if m else None
+
+
 def parse_displays(text: str):
     """Extract (gpu_name, core_count) from `system_profiler SPDisplaysDataType`."""
     name = ""
@@ -106,9 +112,11 @@ def parse_ps(text: str, exclude_pid: int = -1, cpu_threshold: float = 20.0):
 class AppleBackend(Backend):
     name = "apple"
 
-    def __init__(self):
+    def __init__(self, power: bool = False):
         self._static: Optional[StaticInfo] = None
         self._cwd_cache: Dict[int, Optional[str]] = {}
+        self.power = power               # opt-in: GPU wattage via powermetrics (sudo)
+        self._last_power: Optional[float] = None
 
     def static_info(self) -> StaticInfo:
         if self._static:
@@ -132,7 +140,24 @@ class AppleBackend(Backend):
             tiler_util=float(d["Tiler Utilization %"]) if "Tiler Utilization %" in d else None,
             mem_used=d.get("In use system memory"),
             mem_total=self.static_info().mem_total,
+            power_w=self._gpu_power() if self.power else None,
         )
+
+    def _gpu_power(self) -> Optional[float]:
+        """GPU wattage via `sudo -n powermetrics`. Needs passwordless sudo.
+
+        Non-interactive (`-n`) so it never blocks the TUI on a password prompt;
+        if sudo isn't pre-authorized it yields nothing and we keep the last
+        known value (or None).
+        """
+        out = run(
+            ["sudo", "-n", "powermetrics", "--samplers", "gpu_power", "-n1", "-i", "200"],
+            timeout=5,
+        )
+        w = parse_gpu_power(out)
+        if w is not None:
+            self._last_power = w
+        return self._last_power
 
     def processes(self, cpu_threshold: float = 20.0) -> List[ProcInfo]:
         text = run(["ps", "-axo", "pid=,%cpu=,%mem=,rss=,etime=,args="], timeout=4)

@@ -4,8 +4,8 @@ from sonar.model import GpuStats, ProcInfo, StaticInfo
 STATIC = StaticInfo(backend="apple", gpu_name="Apple M4 Pro", cores=16, mem_total=48 * 1024**3)
 
 
-def _proc(pid=1, project="alpha", is_gpu=True):
-    return ProcInfo(pid=pid, name="python3", cmd="python3", cpu=80, project=project, is_gpu=is_gpu)
+def _proc(pid=1, project="alpha", is_gpu=True, cpu=80):
+    return ProcInfo(pid=pid, name="python3", cmd="python3", cpu=cpu, project=project, is_gpu=is_gpu)
 
 
 def test_healthy_when_nothing_notable():
@@ -20,10 +20,17 @@ def test_memory_pressure_crit():
     assert any(h.severity == "crit" for h in hs)
 
 
-def test_coresident_warns():
+def test_coresident_warns_for_active_runs():
     hs = evaluate(STATIC, GpuStats(device_util=80, mem_used=1, mem_total=48 * 1024**3),
-                  [_proc(1, "alpha"), _proc(2, "beta")], [80] * 8)
+                  [_proc(1, "alpha", cpu=80), _proc(2, "beta", cpu=70)], [80] * 8)
     assert any(h.severity == "warn" and "co-resident" in h.text for h in hs)
+
+
+def test_idle_kernel_does_not_trip_coresident():
+    # One real run + a parked kernel (low CPU, no GPU mem) -> no co-resident warn.
+    hs = evaluate(STATIC, GpuStats(device_util=80, mem_used=1, mem_total=48 * 1024**3),
+                  [_proc(1, "alpha", cpu=85), _proc(2, "notebook", cpu=2)], [80] * 8)
+    assert not any("co-resident" in h.text for h in hs)
 
 
 def test_stall_detected():
