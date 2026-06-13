@@ -15,6 +15,8 @@ A small GPU monitor TUI. A nerfed `nvidia-smi`/`htop` for the GPU that also tell
 │ Renderer  ██████        50% │ │ 50286   monorepo/alpha  python3    84   2.2G  1:37h │
 │ Memory    ██████        19% │ └───────────────────────────────────────────────────┘
 │ Utilization ▁▂▃▅▇█▇▆▅▃      │
+│ Owner       ███████░░████   │  ← colored by which project owned the GPU
+│             █ alpha  █ beta   │
 └─────────────────────────────┘
 ┌ hints ──────────────────────┐
 │  ▲ GPU idle while a run is alive — possible stall / data-loading bottleneck        │
@@ -47,10 +49,25 @@ sonar --once          # render one frame and exit (good for screenshots / cron)
 sonar --json          # one machine-readable sample, then exit
 sonar --log           # also append samples to ~/.sonar/log-DATE.jsonl
 sonar --cpu-threshold 10   # surface non-compute processes above 10% CPU too
+
+sonar report          # roll up today's log: GPU time per project + idle
+sonar report --date 2026-06-13
+sonar report path/to/log.jsonl
 ```
 
-The JSONL log answers "which project owned the GPU across the day" after the fact — each
-line records util, memory, and the top project/PID at that moment.
+## Ownership timeline
+
+The live dashboard has an **Owner strip** under the utilization sparkline: one block per
+sample, colored by the project that held the GPU at that moment (grey = idle), with a
+legend. It shows handoffs and idle gaps at a glance — "alpha held it, then a gap, then beta".
+
+For the retrospective, `sonar report` reads the JSONL log and prints a per-project rollup:
+GPU time, % of active time, a share bar, and a totals line (span, active, **idle %**, avg
+util). On a single GPU run serially, the idle number is the one to watch — it's the time
+the scarce GPU sat unused between runs. (A full multi-lane Gantt is intentionally skipped:
+with serial runs only one lane is ever active, so the strip + rollup carry the signal.)
+
+The JSONL log records util, memory, and the owning project/PID per sample.
 
 ## Hints
 
@@ -69,10 +86,11 @@ sonar/
   backends/        # the OS seam: base.py interface, apple.py (ioreg), nvidia.py (nvidia-smi)
   model.py         # shared dataclasses (StaticInfo, GpuStats, ProcInfo, Hint)
   util.py          # command runner, byte formatting, cwd→project mapping
-  history.py       # rolling buffers + optional JSONL logging
+  history.py       # rolling buffers (util + owner) + optional JSONL logging
   hints.py         # pure rule engine
-  ui.py            # Rich Live rendering
-  cli.py           # args, live loop, snapshot/JSON modes
+  report.py        # pure log rollup: per-project GPU time + idle
+  ui.py            # Rich Live rendering (dashboard + report)
+  cli.py           # args, live loop, snapshot/JSON modes, report subcommand
 tests/             # parsers tested against captured command fixtures (no GPU needed)
 ```
 

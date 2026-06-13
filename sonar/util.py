@@ -35,6 +35,22 @@ def human_bytes(n) -> str:
     return f"{f:.1f}T"
 
 
+def human_duration(seconds) -> str:
+    """Compact human duration: 45s, 12m, 1h23m, 2d3h."""
+    if seconds is None:
+        return "-"
+    s = int(seconds)
+    if s < 60:
+        return f"{s}s"
+    if s < 3600:
+        return f"{s // 60}m{s % 60:02d}s" if s % 60 else f"{s // 60}m"
+    if s < 86400:
+        h, rem = divmod(s, 3600)
+        return f"{h}h{rem // 60:02d}m" if rem // 60 else f"{h}h"
+    d, rem = divmod(s, 86400)
+    return f"{d}d{rem // 3600}h" if rem // 3600 else f"{d}d"
+
+
 def find_git_root(path: str):
     p = os.path.abspath(path)
     while True:

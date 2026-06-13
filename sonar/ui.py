@@ -18,9 +18,15 @@ from rich.table import Table
 from rich.text import Text
 
 from .model import GpuStats, Hint, ProcInfo, StaticInfo
-from .util import human_bytes
+from .util import human_bytes, human_duration
 
 _SPARK = "▁▂▃▄▅▆▇█"
+# Stable-ish palette for per-project ownership coloring (idle is grey).
+_PALETTE = [
+    "cyan", "magenta", "green", "yellow", "blue", "bright_red",
+    "bright_cyan", "bright_magenta", "bright_green", "bright_yellow",
+]
+_IDLE_UTIL = 5.0
 _SEV = {
     "crit": ("●", "bold red"),
     "warn": ("▲", "bold yellow"),
@@ -38,6 +44,35 @@ def sparkline(values, width: int = 48) -> Text:
     for v in vals:
         idx = max(0, min(7, int(round((v / 100.0) * 7))))
         t.append(_SPARK[idx], style=_util_color(v))
+    return t
+
+
+def owner_colors(owners) -> dict:
+    """Map distinct project names to palette colors, sorted for stability."""
+    names = sorted({o for o in owners if o})
+    return {n: _PALETTE[i % len(_PALETTE)] for i, n in enumerate(names)}
+
+
+def ownership_strip(util, owner, colors: dict, width: int = 48) -> Text:
+    """One block per sample, colored by the owning project; grey when idle."""
+    u = list(util)[-width:]
+    o = list(owner)[-width:]
+    t = Text()
+    for uv, own in zip(u, o):
+        if uv < _IDLE_UTIL or not own:
+            t.append("█", style="grey30")
+        else:
+            t.append("█", style=colors.get(own, "white"))
+    return t
+
+
+def ownership_legend(colors: dict) -> Text:
+    if not colors:
+        return Text("(idle)", style="grey50")
+    t = Text()
+    for name, c in colors.items():
+        t.append("█ ", style=c)
+        t.append(f"{name}  ", style="grey74")
     return t
 
 
@@ -101,6 +136,15 @@ def _gauges_panel(stats: GpuStats, history) -> Panel:
     trend = Text("Utilization  ", style="bold")
     trend.append_text(sparkline(history.util))
     lines.append(trend)
+
+    # Ownership strip: which project held the GPU at each point in the window.
+    colors = owner_colors(history.owner)
+    strip = Text("Owner        ", style="bold")
+    strip.append_text(ownership_strip(history.util, history.owner, colors))
+    lines.append(strip)
+    legend = Text("             ")
+    legend.append_text(ownership_legend(colors))
+    lines.append(legend)
 
     return Panel(Group(*lines), title="[bold]load[/]", title_align="left",
                  box=ROUNDED, border_style="grey50", padding=(1, 1))
@@ -178,3 +222,44 @@ def render(static: StaticInfo, stats: GpuStats, procs: List[ProcInfo],
     footer.append(f"refresh {interval:g}s", style="grey62")
     root["footer"].update(Align.left(footer))
     return root
+
+
+def render_report(summary, source: str):
+    """Render a report.Summary as a per-project table plus a totals line."""
+    colors = owner_colors([p.project for p in summary.projects])
+    table = Table(box=ROUNDED, expand=False, border_style="grey37",
+                  header_style="bold grey74", title=f"GPU ownership · {source}",
+                  title_style="bold cyan")
+    table.add_column("PROJECT", style="bold")
+    table.add_column("GPU TIME", justify="right")
+    table.add_column("% ACTIVE", justify="right")
+    table.add_column("SHARE", justify="left", no_wrap=True)
+
+    active = summary.active_seconds or 1.0
+    for p in summary.projects:
+        pct = p.seconds / active * 100
+        bar_w = max(1, int(round(pct / 100 * 24)))
+        bar = Text("█" * bar_w, style=colors.get(p.project, "white"))
+        table.add_row(
+            Text(p.project, style=colors.get(p.project, "white")),
+            human_duration(p.seconds),
+            f"{pct:.0f}%",
+            bar,
+        )
+    if not summary.projects:
+        table.add_row("—", "—", "—", "")
+
+    span = summary.span_seconds or 1.0
+    idle_pct = summary.idle_seconds / span * 100
+    totals = Text()
+    totals.append("  span ", style="grey62")
+    totals.append(human_duration(summary.span_seconds), style="bold")
+    totals.append("   active ", style="grey62")
+    totals.append(human_duration(summary.active_seconds), style="bold green")
+    totals.append("   idle ", style="grey62")
+    totals.append(f"{human_duration(summary.idle_seconds)} ({idle_pct:.0f}%)",
+                  style="bold yellow" if idle_pct > 25 else "bold")
+    totals.append("   avg util ", style="grey62")
+    totals.append(f"{summary.avg_util:.0f}%", style="bold")
+    totals.append(f"   {summary.samples} samples", style="grey62")
+    return Group(table, totals)

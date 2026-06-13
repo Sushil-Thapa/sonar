@@ -30,6 +30,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "--cpu-threshold", type=float, default=20.0,
         help="non-compute processes show only above this CPU%% (default 20)",
     )
+    p.set_defaults(cmd="live")
+
+    sub = p.add_subparsers(dest="cmd")
+    rp = sub.add_parser("report", help="summarize a JSONL log into per-project GPU time")
+    rp.add_argument("path", nargs="?", default=None, help="log file (default ~/.sonar/log-DATE.jsonl)")
+    rp.add_argument("--date", default=None, metavar="YYYY-MM-DD", help="pick a day's log (default today)")
     return p
 
 
@@ -86,8 +92,36 @@ def _start_key_listener(stop: dict) -> None:
     threading.Thread(target=loop, daemon=True).start()
 
 
+def _run_report(args) -> int:
+    import os
+
+    from rich.console import Console
+
+    from . import report as report_mod
+    from .history import default_logpath
+
+    if args.path:
+        path = args.path
+    elif args.date:
+        path = os.path.join(os.path.expanduser("~/.sonar"), f"log-{args.date}.jsonl")
+    else:
+        path = default_logpath()
+
+    if not os.path.exists(path):
+        print(f"sonar: no log at {path} (run `sonar --log` to start recording)", file=sys.stderr)
+        return 1
+
+    summary = report_mod.summarize(report_mod.load_records(path))
+    Console().print(ui.render_report(summary, os.path.basename(path)))
+    return 0
+
+
 def main(argv=None) -> int:
     args = _build_parser().parse_args(argv)
+
+    if getattr(args, "cmd", "live") == "report":
+        return _run_report(args)
+
     try:
         backend = detect_backend()
     except RuntimeError as e:

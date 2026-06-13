@@ -27,6 +27,7 @@ class History:
     def __init__(self, maxlen: int = 120, logpath: Optional[str] = None):
         self.util = deque(maxlen=maxlen)
         self.mem = deque(maxlen=maxlen)
+        self.owner = deque(maxlen=maxlen)  # owning project per tick (None = idle/unattributed)
         self.logpath = logpath
         self._fh = None
         if logpath:
@@ -34,10 +35,11 @@ class History:
             self._fh = open(logpath, "a")
 
     def add(self, stats: GpuStats, procs: List[ProcInfo]) -> None:
+        top = max(procs, key=lambda p: (p.gpu_mem or 0, p.cpu), default=None)
         self.util.append(stats.device_util)
         self.mem.append(stats.mem_used or 0)
+        self.owner.append(top.project if top else None)
         if self._fh:
-            top = max(procs, key=lambda p: (p.gpu_mem or 0, p.cpu), default=None)
             rec = {
                 "ts": round(time.time(), 1),
                 "util": round(stats.device_util, 1),
