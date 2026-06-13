@@ -37,7 +37,7 @@ while the command line is the detail that tells you *what* within that project i
 ```sh
 uv tool install .            # from the repo dir; or: uv tool install /path/to/sonar
 sonar                        # now works from any directory
-uv tool upgrade sonar-gpu    # after pulling changes
+uv tool upgrade sonar        # after pulling changes
 ```
 
 **Ephemeral — uvx** (run without installing):
