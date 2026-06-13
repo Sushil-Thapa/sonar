@@ -1,0 +1,16 @@
+[project]
+name = "sonar-gpu"
+version = "0.1.0"
+description = "GPU monitor TUI for macOS (Apple/MLX) and Linux (NVIDIA)"
+requires-python = ">=3.9"
+dependencies = ["rich>=13"]
+
+[project.scripts]
+sonar = "sonar.cli:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["sonar*"]

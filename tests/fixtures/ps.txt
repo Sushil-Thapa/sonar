@@ -1,0 +1,15 @@
+39594  67.5  0.4 200800    00:09 /Users/sushil/.local/share/uv/tools/graphifyy/bin/python3
+73699  30.2  0.9 445840 01:06:06 /Users/sushil/.local/share/claude/versions/2.1.177
+82044  27.7  0.4 217776 01:01:14 /Applications/ChatGPT.app/Contents/MacOS/ChatGPT
+15127  21.6  0.0   4176 02:13:59 /usr/libexec/sysmond
+50286  14.5  3.9 1973904 01:32:34 /Users/sushil/code/monorepo/alpha/.venv/bin/python3
+36710  10.2  0.3 166144 01:55:24 /Users/sushil/Applications/iTerm.app/Contents/MacOS/iTerm2
+33901   9.3  0.4 199248 01:58:48 claude
+43160   8.9  0.1  28128 01:46:23 /System/Applications/Utilities/Activity Monitor.app/Contents/MacOS/Activity Monitor
+30163   6.0  0.3 128352 14:40:14 /Users/sushil/.local/bin/claude
+33331   5.0  0.1  37552 01:58:53 /System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal
+35319   4.7  0.9 456608 01:57:00 /Users/sushil/.local/share/claude/versions/2.1.177
+  410   3.5  0.2  91776 20:04:10 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+30506   2.9  1.0 506560 14:39:08 /Users/sushil/.local/share/claude/versions/2.1.177
+58233   2.5  0.9 444912 01:19:43 /Users/sushil/.local/share/claude/versions/2.1.177
+73692   2.1  0.1  63952 01:06:06 /Users/sushil/.local/share/claude/versions/2.1.177
