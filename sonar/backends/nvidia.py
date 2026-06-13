@@ -11,7 +11,7 @@ import os
 from typing import Dict, List, Optional
 
 from ..model import GpuStats, ProcInfo, StaticInfo
-from ..util import project_from_cwd, run
+from ..util import exe_basename, project_from_cwd, run, short_command
 from .base import Backend
 
 _MB = 1024 * 1024
@@ -120,8 +120,8 @@ class NvidiaBackend(Backend):
         for pid, gm in gpu_mem.items():
             cpu = mem = 0.0
             rss = 0
-            etime = comm = ""
-            line = run(["ps", "-o", "%cpu=,%mem=,rss=,etime=,comm=", "-p", str(pid)]).strip()
+            etime = args = ""
+            line = run(["ps", "-o", "%cpu=,%mem=,rss=,etime=,args=", "-p", str(pid)]).strip()
             if line:
                 parts = line.split(None, 4)
                 if len(parts) >= 5:
@@ -129,13 +129,13 @@ class NvidiaBackend(Backend):
                         cpu, mem, rss = float(parts[0]), float(parts[1]), int(parts[2]) * 1024
                     except ValueError:
                         pass
-                    etime, comm = parts[3], parts[4]
+                    etime, args = parts[3], parts[4]
             cwd = self._cwd(pid)
             procs.append(
                 ProcInfo(
                     pid=pid,
-                    name=os.path.basename(comm) or str(pid),
-                    cmd=comm,
+                    name=exe_basename(args) or str(pid),
+                    cmd=short_command(args) or str(pid),
                     cpu=cpu,
                     mem_pct=mem,
                     rss=rss,

@@ -1,6 +1,22 @@
 import os
 
-from sonar.util import human_bytes, project_from_cwd
+from sonar.util import exe_basename, human_bytes, project_from_cwd, short_command
+
+
+def test_exe_basename():
+    assert exe_basename("/Users/x/.venv/bin/python3 train.py --c a") == "python3"
+    assert exe_basename("node server.js") == "node"
+    assert exe_basename("") == ""
+
+
+def test_short_command_strips_interpreter_path():
+    s = short_command("/Users/x/code/monorepo/.venv/bin/python3 train.py --config c.yaml")
+    assert s == "python3 train.py --config c.yaml"
+
+
+def test_short_command_caps_length():
+    s = short_command("python3 " + "x" * 500, cap=40)
+    assert len(s) == 40 and s.endswith("…")
 
 
 def test_human_bytes():

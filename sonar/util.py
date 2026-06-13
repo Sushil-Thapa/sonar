@@ -35,6 +35,30 @@ def human_bytes(n) -> str:
     return f"{f:.1f}T"
 
 
+def exe_basename(args: str) -> str:
+    """Executable name from a full command line (first token's basename).
+
+    Used for precise matching ("is this python/mlx/ollama?") rather than
+    matching against the whole arg string, which would over-match on paths.
+    """
+    toks = args.split()
+    return os.path.basename(toks[0]) if toks else ""
+
+
+def short_command(args: str, cap: int = 200) -> str:
+    """Compact display of a command line: interpreter path -> basename, capped.
+
+    Turns "/Users/.../.venv/bin/python3 train.py --config c.yaml" into
+    "python3 train.py --config c.yaml" so the script and args are what show.
+    """
+    toks = args.split()
+    if not toks:
+        return args
+    toks[0] = os.path.basename(toks[0])
+    s = " ".join(toks)
+    return s if len(s) <= cap else s[: cap - 1] + "…"
+
+
 def human_duration(seconds) -> str:
     """Compact human duration: 45s, 12m, 1h23m, 2d3h."""
     if seconds is None:

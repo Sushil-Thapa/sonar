@@ -14,7 +14,7 @@ import re
 from typing import Dict, List, Optional
 
 from ..model import GpuStats, ProcInfo, StaticInfo
-from ..util import project_from_cwd, run
+from ..util import exe_basename, project_from_cwd, run, short_command
 from .base import Backend
 
 # Names that strongly suggest a GPU/compute workload on a monorepo Mac.
@@ -54,11 +54,12 @@ def parse_displays(text: str):
 
 
 def parse_ps(text: str, exclude_pid: int = -1, cpu_threshold: float = 20.0):
-    """Turn `ps -axo pid=,%cpu=,%mem=,rss=,etime=,comm=` lines into ProcInfo.
+    """Turn `ps -axo pid=,%cpu=,%mem=,rss=,etime=,args=` lines into ProcInfo.
 
-    Keep a process if it looks like a compute job (name match, low CPU floor) or
-    if it's burning CPU above the threshold regardless of name. cwd/project are
-    filled in later by the backend so this stays a pure, testable function.
+    Matching uses the executable basename (precise); the displayed command is
+    the full, shortened argument line so you see the actual script/config. Keep
+    a process if it looks like a compute job (name match, low CPU floor) or if
+    it's burning CPU above the threshold. cwd/project are filled in later.
     """
     procs: List[ProcInfo] = []
     for line in text.splitlines():
@@ -68,7 +69,7 @@ def parse_ps(text: str, exclude_pid: int = -1, cpu_threshold: float = 20.0):
         parts = line.split(None, 5)
         if len(parts) < 6:
             continue
-        pid_s, cpu_s, mem_s, rss_s, etime, comm = parts
+        pid_s, cpu_s, mem_s, rss_s, etime, args = parts
         try:
             pid = int(pid_s)
             cpu = float(cpu_s)
@@ -78,7 +79,8 @@ def parse_ps(text: str, exclude_pid: int = -1, cpu_threshold: float = 20.0):
             continue
         if pid == exclude_pid:
             continue
-        is_candidate = bool(_CANDIDATE.search(comm))
+        name = exe_basename(args)
+        is_candidate = bool(_CANDIDATE.search(name))
         # Candidates need a small CPU floor to drop idle helpers; non-candidates
         # only show up when genuinely hot.
         if is_candidate:
@@ -89,8 +91,8 @@ def parse_ps(text: str, exclude_pid: int = -1, cpu_threshold: float = 20.0):
         procs.append(
             ProcInfo(
                 pid=pid,
-                name=os.path.basename(comm),
-                cmd=comm,
+                name=name,
+                cmd=short_command(args),
                 cpu=cpu,
                 mem_pct=mem,
                 rss=rss,
@@ -133,7 +135,7 @@ class AppleBackend(Backend):
         )
 
     def processes(self, cpu_threshold: float = 20.0) -> List[ProcInfo]:
-        text = run(["ps", "-axo", "pid=,%cpu=,%mem=,rss=,etime=,comm="], timeout=4)
+        text = run(["ps", "-axo", "pid=,%cpu=,%mem=,rss=,etime=,args="], timeout=4)
         procs = parse_ps(text, exclude_pid=os.getpid(), cpu_threshold=cpu_threshold)
         for p in procs:
             p.cwd = self._cwd(p.pid)

@@ -49,6 +49,17 @@ def test_parse_ps_excludes_pid():
     assert [p.pid for p in procs] == [222]
 
 
+def test_parse_ps_shows_full_command_and_matches_on_exe():
+    # args form: interpreter path + script + flags
+    text = "555 80.0 4.0 200000 01:00:00 /Users/x/monorepo/.venv/bin/python3 train.py --config c.yaml"
+    procs = parse_ps(text)
+    assert len(procs) == 1
+    p = procs[0]
+    assert p.name == "python3"           # matched on executable
+    assert p.is_gpu is True              # python => compute candidate
+    assert p.cmd == "python3 train.py --config c.yaml"  # script visible
+
+
 def test_nvidia_query_gpu_aggregates():
     text = "NVIDIA A100, 40960\nNVIDIA A100, 40960"
     info = parse_query_gpu(text)

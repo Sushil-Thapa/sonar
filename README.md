@@ -11,8 +11,8 @@ A small GPU monitor TUI. A nerfed `nvidia-smi`/`htop` for the GPU that also tell
 ```
 ◣◢ sonar  GPU monitor                         Apple M4 Pro  16 cores  macOS  ·  apple
 ┌ load ───────────────────────┐ ┌ processes (by dominant compute) ──────────────────┐
-│ GPU       ████████████ 100% │ │  PID    PROJECT        COMMAND   CPU%   RSS   TIME │
-│ Renderer  ██████        50% │ │ 50286   monorepo/alpha  python3    84   2.2G  1:37h │
+│ GPU       ████████████ 100% │ │  PID   PROJECT        COMMAND                CPU% │
+│ Renderer  ██████        50% │ │ 50286  monorepo/alpha  python train.py --cfg…  84 │
 │ Memory    ██████        19% │ └───────────────────────────────────────────────────┘
 │ Utilization ▁▂▃▅▇█▇▆▅▃      │
 │ Owner       ███████░░████   │  ← colored by which project owned the GPU
@@ -32,6 +32,10 @@ per-process GPU memory is real (from `nvidia-smi`).
 
 "Which folder" = the process's working directory resolved to its git repo (plus one level,
 so a monorepo like `~/code/monorepo` stays split into `monorepo/alpha`, `monorepo/beta`, …).
+
+The table shows **both** the folder and the actual command line (`python train.py --config
+…`). The folder is the grouping/attribution key — it drives the owner strip and `report` —
+while the command line is the detail that tells you *what* within that project is running.
 
 ## Install
 

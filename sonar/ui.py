@@ -168,7 +168,7 @@ def _process_table(procs: List[ProcInfo]) -> Panel:
                   header_style="bold grey74", pad_edge=False)
     table.add_column("PID", justify="right", style="grey62", no_wrap=True)
     table.add_column("PROJECT", style="bold cyan", no_wrap=True)
-    table.add_column("COMMAND", style="white", no_wrap=True, overflow="ellipsis")
+    table.add_column("COMMAND", style="white", no_wrap=True, overflow="ellipsis", ratio=1)
     table.add_column("CPU%", justify="right", no_wrap=True)
     table.add_column("RSS", justify="right", style="grey62", no_wrap=True)
     if show_gpu_mem:
@@ -183,7 +183,7 @@ def _process_table(procs: List[ProcInfo]) -> Panel:
         cells = [
             str(p.pid),
             p.project or "—",
-            p.name,
+            p.cmd or p.name,
             Text(f"{p.cpu:.0f}", style=cpu_style),
             human_bytes(p.rss),
         ]
