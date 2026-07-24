@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict
 import json
 import sys
 import threading
 import time
 
 from . import hints as hints_mod
+from . import gpuq as gpuq_mod
 from . import ui
 from .backends import detect_backend
-from .history import History, default_logpath
+from .history import History, default_history_path, default_logpath
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -27,16 +29,32 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="PATH", help="append samples as JSONL (default ~/.sonar/log-DATE.jsonl)",
     )
     p.add_argument(
-        "--cpu-threshold", type=float, default=20.0,
-        help="non-compute processes show only above this CPU%% (default 20)",
+        "--persist", nargs="?", const=default_history_path(), default=default_history_path(),
+        metavar="PATH", help="reload/save the rolling live timeline (default ~/.sonar/history-24h.jsonl)",
     )
     p.add_argument(
-        "--window", type=int, default=240,
-        help="samples kept for the sparkline/owner strip (default 240 ~= 6m @1.5s)",
+        "--no-persist", action="store_true",
+        help="do not reload/save live timeline history",
+    )
+    p.add_argument(
+        "--cpu-threshold", type=float, default=20.0,
+        help="legacy Apple heuristic threshold; process list now focuses on GPU-run candidates",
+    )
+    p.add_argument(
+        "--window", type=int, default=0,
+        help="samples kept for timeline history (default: 24h at the refresh interval)",
     )
     p.add_argument(
         "--power", action="store_true",
         help="show GPU power (macOS: needs passwordless `sudo powermetrics`; NVIDIA: always on)",
+    )
+    p.add_argument(
+        "--gpuq-home", default=gpuq_mod.default_gpuq_home(),
+        help="gpuq state directory to display in the TUI (default: $GPUQ_HOME or ~/.gpuq)",
+    )
+    p.add_argument(
+        "--no-gpuq", action="store_true",
+        help="hide the scheduler/gpuq queue panel",
     )
     p.set_defaults(cmd="live")
 
@@ -47,7 +65,7 @@ def _build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def _snapshot_json(static, stats, procs) -> str:
+def _snapshot_json(static, stats, procs, gpuq_snapshot=None) -> str:
     return json.dumps(
         {
             "backend": static.backend,
@@ -68,6 +86,7 @@ def _snapshot_json(static, stats, procs) -> str:
                 }
                 for p in procs
             ],
+            "gpuq": asdict(gpuq_snapshot) if gpuq_snapshot else None,
         },
         indent=2,
     )
@@ -144,19 +163,29 @@ def main(argv=None) -> int:
     if args.json:
         stats = backend.sample()
         procs = backend.processes(cpu_threshold=args.cpu_threshold)
-        print(_snapshot_json(static, stats, procs))
+        gpuq_snapshot = None if args.no_gpuq else gpuq_mod.read_gpuq(args.gpuq_home)
+        print(_snapshot_json(static, stats, procs, gpuq_snapshot))
         return 0
 
-    hist = History(maxlen=max(1, args.window), logpath=args.log)
+    history_samples = max(1, args.window) if args.window else max(1, int(round(24 * 60 * 60 / args.interval)))
+    retention_seconds = history_samples * args.interval
+    persist_path = None if args.no_persist else args.persist
+    hist = History(
+        maxlen=history_samples,
+        logpath=args.log,
+        persist_path=persist_path,
+        retention_seconds=retention_seconds,
+    )
 
     if args.once:
         stats = backend.sample()
         procs = backend.processes(cpu_threshold=args.cpu_threshold)
         hist.add(stats, procs)
         hs = hints_mod.evaluate(static, stats, procs, hist.util)
+        gpuq_snapshot = None if args.no_gpuq else gpuq_mod.read_gpuq(args.gpuq_home)
         from rich.console import Console
 
-        Console().print(ui.render(static, stats, procs, hs, hist, args.interval))
+        Console().print(ui.render(static, stats, procs, hs, hist, args.interval, gpuq_snapshot))
         hist.close()
         return 0
 
@@ -171,7 +200,8 @@ def main(argv=None) -> int:
                 procs = backend.processes(cpu_threshold=args.cpu_threshold)
                 hist.add(stats, procs)
                 hs = hints_mod.evaluate(static, stats, procs, hist.util)
-                live.update(ui.render(static, stats, procs, hs, hist, args.interval))
+                gpuq_snapshot = None if args.no_gpuq else gpuq_mod.read_gpuq(args.gpuq_home)
+                live.update(ui.render(static, stats, procs, hs, hist, args.interval, gpuq_snapshot))
                 live.refresh()
                 waited = 0.0
                 while waited < args.interval and not stop["v"]:

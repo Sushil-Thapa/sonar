@@ -62,7 +62,10 @@ def evaluate(
 
     # Load with nobody attributed.
     if stats.device_util > 50 and not gpu_procs:
-        hints.append(Hint("info", f"GPU at {stats.device_util:.0f}% but no compute process attributed (try lowering --cpu-threshold)"))
+        if static.backend == "apple":
+            hints.append(Hint("info", f"GPU at {stats.device_util:.0f}% but no GPU-run process attributed (macOS attribution is heuristic)"))
+        else:
+            hints.append(Hint("info", f"GPU at {stats.device_util:.0f}% but no compute process attributed"))
 
     if not hints:
         hints.append(Hint("info", "Nothing notable — GPU healthy."))

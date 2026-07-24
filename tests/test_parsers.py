@@ -36,11 +36,16 @@ def test_parse_displays_real_fixture():
 def test_parse_ps_filters_and_types():
     procs = parse_ps(_read("ps.txt"), cpu_threshold=20.0)
     assert procs, "expected at least one process from fixture"
+    names = {p.name for p in procs}
+    assert "sysmond" not in names
+    assert "Activity" not in names
+    assert "iTerm2" not in names
+    assert "Terminal" not in names
+    assert "WindowServer" not in names
     for p in procs:
         assert isinstance(p.pid, int)
         assert p.rss >= 0
-        # kept either as a compute candidate or for high CPU
-        assert p.is_gpu or p.cpu >= 20.0
+        assert p.is_gpu
 
 
 def test_parse_ps_excludes_pid():
@@ -58,6 +63,32 @@ def test_parse_ps_shows_full_command_and_matches_on_exe():
     assert p.name == "python3"           # matched on executable
     assert p.is_gpu is True              # python => compute candidate
     assert p.cmd == "python3 train.py --config c.yaml"  # script visible
+
+
+def test_parse_ps_excludes_assistant_shells_without_gpu_child():
+    text = "\n".join(
+        [
+            "111 50.0 0.1 1000 00:01 /usr/libexec/sysmond",
+            "222 30.0 0.4 2000 00:02 /Users/me/.local/share/claude/versions/2.1.177 --bg-spare",
+            "333 20.0 0.4 2000 00:03 /Applications/Codex.app/Contents/MacOS/Codex",
+            "444 25.0 0.4 2000 00:04 /Applications/Claude.app/Contents/MacOS/Claude",
+            "555 15.0 4.0 200000 00:05 /Users/me/proj/.venv/bin/python train.py",
+        ]
+    )
+    procs = parse_ps(text)
+    assert [p.pid for p in procs] == [555]
+
+
+def test_parse_ps_excludes_sonar_itself():
+    text = "\n".join(
+        [
+            "111 20.0 0.1 1000 00:01 uv run sonar",
+            "222 20.0 0.1 1000 00:02 /Users/me/code/sonar/.venv/bin/python3 /Users/me/code/sonar/.venv/bin/sonar",
+            "333 20.0 0.1 1000 00:03 /Users/me/code/project/.venv/bin/python3 train.py",
+        ]
+    )
+    procs = parse_ps(text)
+    assert [p.pid for p in procs] == [333]
 
 
 def test_parse_gpu_power():

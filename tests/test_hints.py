@@ -48,4 +48,4 @@ def test_underutilized():
 def test_unattributed_load():
     hs = evaluate(STATIC, GpuStats(device_util=90, mem_used=1, mem_total=48 * 1024**3),
                   [], [90] * 8)
-    assert any("no compute process" in h.text for h in hs)
+    assert any("no GPU-run process" in h.text for h in hs)

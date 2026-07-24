@@ -25,9 +25,11 @@ GB = 1024 ** 3
 
 
 def fake_history() -> History:
-    h = History(maxlen=120)
+    h = History(maxlen=57600)
+    now = 1_700_000_000.0
     # A handoff: alpha ran, a short idle gap, then beta ramps up to full.
     for i in range(120):
+        h.ts.append(now - (119 - i) / 119 * 24 * 60 * 60)
         if i < 55:
             util, owner = 96, "monorepo/alpha"
         elif i < 67:

@@ -17,11 +17,40 @@ from ..model import GpuStats, ProcInfo, StaticInfo
 from ..util import exe_basename, project_from_cwd, run, short_command
 from .base import Backend
 
-# Executable names that suggest a GPU/compute workload.
-_CANDIDATE = re.compile(
-    r"(python|mlx|ollama|llama|ggml|comfy|stable|mojo|julia|jupyter|torch|tensorflow|jax)",
+# Executable names and command-line markers that suggest a GPU workload.
+#
+# macOS does not expose public per-process GPU use, so this intentionally
+# avoids a generic "hot CPU process" fallback. The process table should answer
+# "which training/model run is likely responsible?" rather than becoming htop.
+_GPU_EXE = re.compile(
+    r"^(python\d*(?:\.\d+)?|pypy\d*|ipython|jupyter.*|mlx.*|ollama|llama.*|ggml.*|"
+    r"comfy.*|stable.*|mojo|julia)$",
     re.I,
 )
+_GPU_CMD = re.compile(
+    r"(^|[/\s._-])("
+    r"mlx|ollama|llama|llava|qwen|mistral|gemma|deepseek|"
+    r"torch|tensorflow|transformers|jax|vllm|accelerate|deepspeed|"
+    r"comfyui|stable-diffusion|grpo|lora|finetun(?:e|ing)|train|eval"
+    r")([/\s._-]|$)",
+    re.I,
+)
+_PYTHON_EXE = re.compile(r"^(python\d*(?:\.\d+)?|pypy\d*)$", re.I)
+_ASSISTANT_EXE = re.compile(r"^(claude|codex|chatgpt)$", re.I)
+
+
+def _is_sonar_monitor(args: str) -> bool:
+    toks = args.split()
+    if not toks:
+        return False
+    names = [os.path.basename(t) for t in toks]
+    if names[0] == "sonar":
+        return True
+    if len(names) >= 3 and names[0] == "uv" and names[1] == "run" and names[2] == "sonar":
+        return True
+    if len(names) >= 2 and _PYTHON_EXE.fullmatch(names[0]) and names[1] == "sonar":
+        return True
+    return False
 
 
 def parse_ioreg(text: str) -> Dict[str, int]:
@@ -63,9 +92,12 @@ def parse_ps(text: str, exclude_pid: int = -1, cpu_threshold: float = 20.0):
     """Turn `ps -axo pid=,%cpu=,%mem=,rss=,etime=,args=` lines into ProcInfo.
 
     Matching uses the executable basename (precise); the displayed command is
-    the full, shortened argument line so you see the actual script/config. Keep
-    a process if it looks like a compute job (name match, low CPU floor) or if
-    it's burning CPU above the threshold. cwd/project are filled in later.
+    the full, shortened argument line so you see the actual script/config.
+    Keep only likely GPU work: Python/ML runtimes or commands carrying
+    training/model markers. Assistant shells like Claude/Codex/ChatGPT are
+    intentionally excluded because they are usually orchestration/UI noise; if
+    they launch a GPU job, the Python/model child process is what should show.
+    cwd/project are filled in later.
     """
     procs: List[ProcInfo] = []
     for line in text.splitlines():
@@ -86,13 +118,14 @@ def parse_ps(text: str, exclude_pid: int = -1, cpu_threshold: float = 20.0):
         if pid == exclude_pid:
             continue
         name = exe_basename(args)
-        is_candidate = bool(_CANDIDATE.search(name))
-        # Candidates need a small CPU floor to drop idle helpers; non-candidates
-        # only show up when genuinely hot.
-        if is_candidate:
-            if cpu < 1.0:
-                continue
-        elif cpu < cpu_threshold:
+        if _is_sonar_monitor(args):
+            continue
+        if _ASSISTANT_EXE.fullmatch(name):
+            continue
+        is_candidate = bool(_GPU_EXE.search(name) or _GPU_CMD.search(args))
+        # Candidates need a small CPU floor to drop idle helpers. Do not fall
+        # back to generic high-CPU processes; they swamp the useful AI list.
+        if not is_candidate or cpu < 1.0:
             continue
         procs.append(
             ProcInfo(
