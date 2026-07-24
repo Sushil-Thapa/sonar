@@ -14,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
+from . import remote as remote_mod
 from .model import GpuqJob, GpuqSnapshot
 
 
@@ -169,6 +170,7 @@ def read_gpuq(home: Optional[str] = None) -> GpuqSnapshot:
     if not root.exists():
         return GpuqSnapshot(available=False)
     now = time.time()
+    remote_hosts = remote_mod.read_remote_hosts(str(root), now=now)
     try:
         state = _read_json(root / "state.json")
         queue_rows = _read_queue(root / "queue.jsonl")
@@ -200,6 +202,7 @@ def read_gpuq(home: Optional[str] = None) -> GpuqSnapshot:
             running=running,
             queued=queued,
             updated_at=now,
+            remote_hosts=remote_hosts,
         )
     except Exception as exc:
-        return GpuqSnapshot(available=True, error=str(exc), updated_at=now)
+        return GpuqSnapshot(available=True, error=str(exc), updated_at=now, remote_hosts=remote_hosts)

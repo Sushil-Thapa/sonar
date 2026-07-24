@@ -107,6 +107,35 @@ The JSONL log records util, memory, and the owning project/PID per sample. The r
 cache is for the dashboard; `--log` is still useful when you want durable per-day `sonar report`
 rollups.
 
+## Remote hosts
+
+sonar can also surface remote cluster GPUs beside the local queue. Drop one status snapshot
+per host into `~/.gpuq/remote/*.json` (or `$GPUQ_HOME/remote/`) and sonar renders each under
+the gpuq panel. For a reachable node it shows one line per GPU: utilization (same
+green/yellow/red thresholds as the local gauges), memory, and the user and job holding it.
+Unreachable nodes fall back to the scheduler's allocation list. sonar only reads these files,
+re-reading them every frame, and flags any snapshot older than 30 minutes as `STALE`. When the
+directory is empty nothing renders, so local-only users pay nothing for the feature.
+
+Some out-of-band probe writes the files (sonar never does). Every key is optional, and older
+files without `host_status` still render:
+
+```json
+{
+  "ts": 1700000000,
+  "host": "cluster1",
+  "du": "9.5G",
+  "jobs": [{"id": "1", "state": "RUNNING", "name": "train-run", "elapsed": "2:00", "gres": "gres:gpu:1", "node": "node-a"}],
+  "host_status": {
+    "allocs": [{"user": "alice", "node": "node-a", "gres": "gres:gpu:1", "state": "RUNNING", "jobname": "train-run", "elapsed": "2:00"}],
+    "nodes": {
+      "node-a": {"reachable": true, "gpus": [{"i": 0, "util_pct": 90, "mem_used_mib": 12000, "mem_total_mib": 24000, "users": ["alice"]}]},
+      "node-b": {"reachable": false, "gpus": []}
+    }
+  }
+}
+```
+
 ## Hints
 
 Rule-based flags over the current sample plus recent history:
@@ -125,6 +154,8 @@ sonar/
   model.py         # shared dataclasses (StaticInfo, GpuStats, ProcInfo, Hint)
   util.py          # command runner, byte formatting, cwd→project mapping
   history.py       # rolling buffers (util + owner) + optional JSONL logging
+  gpuq.py          # read-only reader for local scheduler/gpuq state
+  remote.py        # read-only reader for remote host snapshots (<gpuq-home>/remote/*.json)
   hints.py         # pure rule engine
   report.py        # pure log rollup: per-project GPU time + idle
   ui.py            # Rich Live rendering (dashboard + report)

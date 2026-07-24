@@ -90,7 +90,75 @@ class GpuqSnapshot:
     queued: List[GpuqJob] = None
     error: str = ""
     updated_at: Optional[float] = None
+    remote_hosts: List["RemoteHost"] = None  # remote cluster snapshots, if any
 
     def __post_init__(self) -> None:
         if self.queued is None:
             self.queued = []
+        if self.remote_hosts is None:
+            self.remote_hosts = []
+
+
+@dataclass
+class RemoteGpu:
+    """One GPU on a remote node, from an out-of-band probe."""
+
+    index: int
+    util_pct: float = 0.0
+    mem_used_mib: Optional[int] = None
+    mem_total_mib: Optional[int] = None
+    users: List[str] = None
+
+    def __post_init__(self) -> None:
+        if self.users is None:
+            self.users = []
+
+
+@dataclass
+class RemoteNode:
+    """A remote compute node; unreachable ones carry no GPU readings."""
+
+    name: str
+    reachable: bool = False
+    gpus: List[RemoteGpu] = None
+
+    def __post_init__(self) -> None:
+        if self.gpus is None:
+            self.gpus = []
+
+
+@dataclass
+class RemoteAlloc:
+    """A scheduler allocation on a remote host (who holds what)."""
+
+    user: str = ""
+    node: str = ""
+    gres: str = ""
+    state: str = ""
+    jobname: str = ""
+    elapsed: str = ""
+
+
+@dataclass
+class RemoteHost:
+    """One remote host snapshot read from <gpuq-home>/remote/<host>.json.
+
+    Every field is optional so old-schema or partial files still render. age is
+    computed from ts at read time; stale marks a snapshot older than the reader's
+    threshold.
+    """
+
+    host: str
+    ts: Optional[float] = None
+    age_seconds: Optional[float] = None
+    stale: bool = False
+    disk_usage: Optional[str] = None
+    n_jobs: int = 0
+    nodes: List[RemoteNode] = None
+    allocs: List[RemoteAlloc] = None
+
+    def __post_init__(self) -> None:
+        if self.nodes is None:
+            self.nodes = []
+        if self.allocs is None:
+            self.allocs = []

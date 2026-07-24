@@ -412,8 +412,90 @@ def _progress(job: GpuqJob) -> str:
     return f"{prefix}{job.progress_current}"
 
 
+def _alloc_index(allocs) -> dict:
+    """Map (node, user) and ("", user) to the job name(s) that user holds.
+
+    Lets a per-GPU line name the job behind a user without the probe having to
+    join allocations to GPUs itself.
+    """
+    idx: dict = {}
+    for a in allocs:
+        if not a.user:
+            continue
+        for key in ((a.node, a.user), ("", a.user)):
+            names = idx.setdefault(key, [])
+            if a.jobname and a.jobname not in names:
+                names.append(a.jobname)
+    return idx
+
+
+def _gpu_attribution(node_name: str, gpu, idx: dict) -> List[str]:
+    frags: List[str] = []
+    for user in gpu.users:
+        names = idx.get((node_name, user)) or idx.get(("", user)) or []
+        frags.append(f"{user}({','.join(names)})" if names else user)
+    return frags
+
+
+def _remote_gib(mib) -> float:
+    return (mib or 0) / 1000.0
+
+
+def _remote_lines(hosts) -> List[Text]:
+    """Render remote host snapshots as indented lines for the gpuq panel.
+
+    Returns [] when there are no hosts, so local-only users see no remote block
+    and pay nothing for the feature.
+    """
+    if not hosts:
+        return []
+    lines: List[Text] = [Text("remote hosts", style="bold grey74")]
+    for host in hosts:
+        head = Text()
+        head.append(host.host, style="bold")
+        if host.age_seconds is not None:
+            head.append(f"  (age {int(round(host.age_seconds / 60))}m", style="grey62")
+            if host.stale:
+                head.append(", ", style="grey62")
+                head.append("STALE", style="bold red")
+            head.append(")", style="grey62")
+        head.append(f"  jobs={host.n_jobs}", style="grey74")
+        if host.disk_usage:
+            head.append(f"  du {host.disk_usage}", style="grey62")
+        lines.append(head)
+
+        idx = _alloc_index(host.allocs)
+        for node in host.nodes:
+            if node.reachable:
+                for gpu in node.gpus:
+                    row = Text("  ")
+                    row.append(f"{node.name} gpu{gpu.index}", style="grey74")
+                    row.append(f"  {gpu.util_pct:.0f}%", style=_util_color(gpu.util_pct))
+                    if gpu.mem_total_mib:
+                        row.append(
+                            f"  {_remote_gib(gpu.mem_used_mib):.1f}/{_remote_gib(gpu.mem_total_mib):.1f}G",
+                            style="grey62",
+                        )
+                    frags = _gpu_attribution(node.name, gpu, idx)
+                    if frags:
+                        row.append("  " + " ".join(frags), style="cyan")
+                    lines.append(row)
+            else:
+                node_allocs = [a for a in host.allocs if a.node == node.name]
+                if not node_allocs:
+                    lines.append(Text("  ").append(f"{node.name} (no probe)", style="grey50"))
+                for a in node_allocs:
+                    line = Text("  ")
+                    line.append(f"{node.name} (no probe) alloc: ", style="grey50")
+                    detail = " ".join(x for x in (a.user, a.gres, a.state, a.jobname, a.elapsed) if x)
+                    line.append(detail, style="grey62")
+                    lines.append(line)
+    return lines
+
+
 def _gpuq_panel(gpuq: GpuqSnapshot | None, max_lines: int | None = None) -> Panel:
     lines: List[Text] = []
+    remote = _remote_lines(gpuq.remote_hosts) if (gpuq and gpuq.available) else []
     if gpuq is None or not gpuq.available:
         lines.append(Text("gpuq state not found", style="grey62"))
     elif gpuq.error:
@@ -451,7 +533,7 @@ def _gpuq_panel(gpuq: GpuqSnapshot | None, max_lines: int | None = None) -> Pane
         # show as many as fit and collapse the rest into a "+N more" line so the
         # count in the title always matches what's on screen (rich would
         # otherwise silently crop the overflow).
-        budget = len(queue) if max_lines is None else max(0, max_lines - len(lines))
+        budget = len(queue) if max_lines is None else max(0, max_lines - len(lines) - len(remote))
         overflow = max(0, len(queue) - budget)
         if overflow:
             budget = max(0, budget - 1)  # reserve a line for the "+N more" note
@@ -487,6 +569,7 @@ def _gpuq_panel(gpuq: GpuqSnapshot | None, max_lines: int | None = None) -> Pane
             more.append(" more queued", style="grey50")
             lines.append(more)
 
+    lines.extend(remote)
     title = "[bold]gpuq queue[/]"
     if gpuq and gpuq.available and not gpuq.error:
         title += f"  [grey62]{len(gpuq.queued)} queued[/]"
@@ -540,9 +623,10 @@ def render(static: StaticInfo, stats: GpuStats, procs: List[ProcInfo],
         n_queued = len(gpuq.queued)
     # Grow the queue panel to fit all jobs, but keep the process table alive and
     # never drop below the old default height (baseline) on normal terminals.
-    need = running_lines + n_queued
+    remote_ct = len(_remote_lines(gpuq.remote_hosts)) if (gpuq is not None and gpuq.available) else 0
+    need = running_lines + n_queued + remote_ct
     proc_min = 4
-    baseline = min(need, 6)
+    baseline = min(need, 6 + remote_ct)
     avail = max(3, right_h - proc_min - 2)  # 2 = gpuq panel borders
     gpuq_interior = max(baseline, min(need, avail))
     root["right"].split_column(
